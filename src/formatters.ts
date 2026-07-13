@@ -2,10 +2,12 @@ import type { BidetResult } from './logic/useBidet.js';
 import type { EnhanceResult } from './logic/enhanceToilet.js';
 import type { FlushResult } from './logic/flushToilet.js';
 import type { PerfumeResult } from './logic/usePerfume.js';
+import type { SelectSkinResult } from './logic/selectSkin.js';
 import type { DexResult, StatusResult } from './logic/status.js';
 import type { ThrowResult } from './types.js';
 
 const SKIN_LABELS: Record<string, string> = {
+  lv0_worn: '낡은 변기',
   lv1_white: '새하얀 변기',
   lv2_stainless: '스테인리스 변기',
   lv3_marble: '대리석 변기',
@@ -28,7 +30,10 @@ export function formatThrowResult(result: ThrowResult): string {
   if (result.error === 'SELF_TARGET') return `❓ ${result.message}`;
 
   const lines: string[] = [];
+  lines.push(result.is_new_discovery ? '🆕 처음 발견한 똥이네요! 도감에 새로운 똥이 추가됐어요.' : '✨ 이미 도감에 등록된 똥입니다.');
   lines.push(`💩 [${result.species_name}]을(를) ${result.target}님에게 던졌습니다!`);
+  lines.push(`🎯 피격 대상: ${result.target}`);
+  if (result.today_throw_count) lines.push(`💩 오늘 던진 똥의 개수: ${result.today_throw_count}개`);
 
   switch (result.event) {
     case 'rainbow':
@@ -41,11 +46,11 @@ export function formatThrowResult(result: ThrowResult): string {
       break;
     case 'golden':
       lines.push(
-        `👑 황금 똥이다! "황금 변기의 신이 강림했습니다. 모두 침묵하십시오!" — 60초간 ${result.target}님 외 다른 사람이 아무 명령이나 사용하면 똥 스택 +1 페널티를 받습니다.`,
+        `👑 황금 똥이다! [황금 변기 독점 알현] 황금 변기의 신이 강림하여 단톡방 멤버들의 코인을 수금합니다!`,
       );
       break;
     case 'diamond':
-      lines.push(`💎 다이아 똥이다! ${result.target}님, 현실 벌칙 발동 — 엽떡 쏘세요 🌶️`);
+      lines.push(`💎 다이아 똥이다! [광역 자산 압류] 단톡방에 압류 딱지가 붙었습니다. 전원 잔고의 30%를 몰수합니다!`);
       break;
   }
 
@@ -53,7 +58,21 @@ export function formatThrowResult(result: ThrowResult): string {
     lines.push(`${result.target}님의 변기 스택: ${result.target_new_stack}/10`);
   }
   lines.push(`(+${result.coin_earned} 코인 획득)`);
+  if (result.room_tax && result.room_tax.entries.length > 0) {
+    lines.push(`🧾 ${result.room_tax.label} 내역`);
+    for (const entry of result.room_tax.entries) {
+      lines.push(`  ${entry.userId}: -${entry.amount}`);
+    }
+    lines.push(`(총 ${result.room_tax.total} 코인 추가 수금)`);
+  }
   if (result.daily_bonus) lines.push('🎁 오늘의 첫 던지기 출석 보너스 +300 코인!');
+  if (
+    result.dex_collected !== undefined &&
+    result.dex_total !== undefined &&
+    !(result.unlocked_skins ?? []).includes('allstar')
+  ) {
+    lines.push(`🏆 [업적] 올스타 변기 도전 중! (${result.dex_collected}/${result.dex_total})`);
+  }
   lines.push(skinList(result.unlocked_skins));
 
   return lines.filter(Boolean).join('\n');
@@ -124,4 +143,19 @@ export function formatDex(result: DexResult): string {
   }
   if (result.collected.length === 0) lines.push('  아직 수집한 똥이 없습니다. 던지기를 해보세요!');
   return lines.join('\n');
+}
+
+export function formatSelectSkinResult(result: SelectSkinResult): string {
+  if (result.listed && result.list) {
+    const lines: string[] = ['🚽 변기 보관함'];
+    for (const entry of result.list) {
+      const label = SKIN_LABELS[entry.skin_id] ?? entry.skin_id;
+      const status = entry.equipped ? ' (장착 중)' : entry.unlocked ? '' : ' (잠김)';
+      lines.push(`${entry.index}. ${label}${status}`);
+    }
+    lines.push('장착하려면 "변기 선택 [번호]" 형식으로 입력해주세요.');
+    return lines.join('\n');
+  }
+  if (!result.success) return `🔒 ${result.message}`;
+  return `🚽 변기 스킨 교체 완료! [${SKIN_LABELS[result.skin_id!] ?? result.skin_id}]로 장착했습니다.`;
 }

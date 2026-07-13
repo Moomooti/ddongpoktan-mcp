@@ -42,7 +42,14 @@ export const COIN_REWARD = {
 
 export const BIDET_COST = 15;
 export const MAX_STACK = 10;
-export const GOLDEN_EVENT_DURATION_SEC = 60;
+
+// DESIGN.md §2.2 - golden poop tax: every other room member is taxed this many
+// coins (or their full balance if lower), all collected by the thrower.
+export const GOLDEN_TAX_AMOUNT = 20;
+
+// Diamond poop "광역 자산 압류": every other room member has this fraction of
+// their current balance seized, all collected by the thrower.
+export const DIAMOND_SEIZURE_RATE = 0.3;
 
 // TBD #7 (DESIGN.md): perfume cost/scope wasn't specified in the 기획서.
 // Chosen as a guaranteed (non-probabilistic) alternative to flush_toilet,

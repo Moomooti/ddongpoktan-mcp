@@ -2,20 +2,22 @@ import { COIN_REWARD, GOOD_FORTUNE_DURATION_MS } from '../constants.js';
 import {
   addStack,
   applyDailyBonusIfNeeded,
+  applyDiamondSeizure,
+  applyGoldenTax,
   checkAndUnlockSkins,
   creditCoin,
   endRound,
   ensurePlayer,
   getPlayer,
+  incrementDailyThrowCount,
   incrementDiamondLifetimeCount,
   incrementGoldenEventCount,
   incrementRainbowHitCount,
   recordDexHit,
   setFortune,
   setLastAttacker,
-  startGoldenEvent,
 } from '../repository.js';
-import { pickRandomBasicSpeciesId, rollTier, SPECIAL_SPECIES_ID, SPECIES_BY_ID } from '../species.js';
+import { pickRandomBasicSpeciesId, rollTier, SPECIAL_SPECIES_ID, SPECIES, SPECIES_BY_ID } from '../species.js';
 import type { ThrowResult } from '../types.js';
 
 export function throwPoop(roomId: string, thrower: string, targetNicknameInput?: string): ThrowResult {
@@ -38,12 +40,14 @@ export function throwPoop(roomId: string, thrower: string, targetNicknameInput?:
   const speciesId = tier === 'basic' ? pickRandomBasicSpeciesId() : SPECIAL_SPECIES_ID[tier];
   const species = SPECIES_BY_ID[speciesId];
 
-  recordDexHit(roomId, target, speciesId);
+  const dexHit = recordDexHit(roomId, thrower, speciesId);
   creditCoin(roomId, thrower, COIN_REWARD.baseThrow, 'base_throw');
   const dailyBonus = applyDailyBonusIfNeeded(roomId, thrower);
+  const todayThrowCount = incrementDailyThrowCount(roomId, thrower);
 
   let targetNewStack = 0;
   let event: ThrowResult['event'];
+  let roomTax: ThrowResult['room_tax'];
 
   switch (tier) {
     case 'basic':
@@ -62,23 +66,36 @@ export function throwPoop(roomId: string, thrower: string, targetNicknameInput?:
       targetNewStack = 0;
       event = 'bomb';
       break;
-    case 'golden':
+    case 'golden': {
       targetNewStack = addStack(roomId, target, 1);
-      startGoldenEvent(roomId, target);
-      creditCoin(roomId, target, COIN_REWARD.goldenTrigger, 'golden_trigger');
-      incrementGoldenEventCount(roomId, target);
+      creditCoin(roomId, thrower, COIN_REWARD.goldenTrigger, 'golden_trigger');
+      const taxEntries = applyGoldenTax(roomId, thrower);
+      incrementGoldenEventCount(roomId, thrower);
       event = 'golden';
+      roomTax = {
+        label: '세금 강제 조공',
+        entries: taxEntries,
+        total: taxEntries.reduce((sum, e) => sum + e.amount, 0),
+      };
       break;
-    case 'diamond':
+    }
+    case 'diamond': {
       targetNewStack = addStack(roomId, target, 1);
-      creditCoin(roomId, target, COIN_REWARD.diamondTrigger, 'diamond_trigger');
-      incrementDiamondLifetimeCount(roomId, target);
+      creditCoin(roomId, thrower, COIN_REWARD.diamondTrigger, 'diamond_trigger');
+      const seizureEntries = applyDiamondSeizure(roomId, thrower);
+      incrementDiamondLifetimeCount(roomId, thrower);
       event = 'diamond';
+      roomTax = {
+        label: '지분 강제 차감',
+        entries: seizureEntries,
+        total: seizureEntries.reduce((sum, e) => sum + e.amount, 0),
+      };
       break;
+    }
   }
 
   setLastAttacker(roomId, target, thrower);
-  const unlockedSkins = checkAndUnlockSkins(roomId, target);
+  const unlockedSkins = [...checkAndUnlockSkins(roomId, target), ...checkAndUnlockSkins(roomId, thrower)];
 
   return {
     species_id: speciesId,
@@ -90,5 +107,10 @@ export function throwPoop(roomId: string, thrower: string, targetNicknameInput?:
     daily_bonus: dailyBonus,
     event,
     unlocked_skins: unlockedSkins,
+    room_tax: roomTax,
+    is_new_discovery: dexHit.isNew,
+    dex_collected: dexHit.collectedCount,
+    dex_total: SPECIES.length,
+    today_throw_count: todayThrowCount,
   };
 }

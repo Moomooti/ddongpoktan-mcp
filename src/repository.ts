@@ -1,5 +1,6 @@
 import { db } from './db.js';
-import { COIN_REWARD, GOLDEN_EVENT_DURATION_SEC, MAX_STACK } from './constants.js';
+import { COIN_REWARD, DIAMOND_SEIZURE_RATE, GOLDEN_TAX_AMOUNT, MAX_STACK } from './constants.js';
+import { SPECIES } from './species.js';
 import type { CoinLedgerEntry, DexEntry, FortuneState, PlayerRow, RoomRow } from './types.js';
 
 function nowIso(): string {
@@ -129,13 +130,50 @@ export function debitCoin(roomId: string, userId: string, amount: number, reason
   return true;
 }
 
-export function recordDexHit(roomId: string, userId: string, speciesId: number): void {
+export interface DexHitResult {
+  isNew: boolean;
+  collectedCount: number;
+}
+
+export function recordDexHit(roomId: string, userId: string, speciesId: number): DexHitResult {
   ensurePlayer(roomId, userId);
+  const existing = db
+    .prepare('SELECT 1 FROM user_dex WHERE room_id = ? AND user_id = ? AND species_id = ?')
+    .get(roomId, userId, speciesId);
   db.prepare(
     `INSERT INTO user_dex (room_id, user_id, species_id, hit_count, first_hit_at)
      VALUES (?, ?, ?, 1, ?)
      ON CONFLICT(room_id, user_id, species_id) DO UPDATE SET hit_count = hit_count + 1`,
   ).run(roomId, userId, speciesId, nowIso());
+  const collectedCount = (
+    db.prepare('SELECT COUNT(*) AS n FROM user_dex WHERE room_id = ? AND user_id = ?').get(roomId, userId) as {
+      n: number;
+    }
+  ).n;
+  return { isNew: !existing, collectedCount };
+}
+
+/** Resets to 1 on a new KST day, otherwise increments. Returns the count after this throw. */
+export function incrementDailyThrowCount(roomId: string, userId: string): number {
+  const player = getPlayer(roomId, userId);
+  const today = todayKst();
+  const count = player.daily_throw_date === today ? player.daily_throw_count + 1 : 1;
+  db.prepare(
+    'UPDATE user_room_state SET daily_throw_count = ?, daily_throw_date = ? WHERE room_id = ? AND user_id = ?',
+  ).run(count, today, roomId, userId);
+  return count;
+}
+
+/** Switches the caller's equipped toilet skin. lv0_worn is always allowed (default skin). */
+export function setEquippedSkin(roomId: string, userId: string, skinId: string): boolean {
+  if (skinId !== 'lv0_worn' && !getUnlockedSkins(roomId, userId).includes(skinId)) return false;
+  ensurePlayer(roomId, userId);
+  db.prepare('UPDATE user_room_state SET equipped_skin = ? WHERE room_id = ? AND user_id = ?').run(
+    skinId,
+    roomId,
+    userId,
+  );
+  return true;
 }
 
 export function getDex(roomId: string, userId: string): DexEntry[] {
@@ -198,27 +236,53 @@ export function incrementDiamondLifetimeCount(roomId: string, userId: string): v
   ).run(roomId, userId);
 }
 
-export function startGoldenEvent(roomId: string, holderId: string): void {
-  ensureRoom(roomId);
-  const expiresAt = new Date(Date.now() + GOLDEN_EVENT_DURATION_SEC * 1000).toISOString();
-  db.prepare('UPDATE room_state SET golden_holder_id = ?, golden_expires_at = ? WHERE room_id = ?').run(
-    holderId,
-    expiresAt,
-    roomId,
-  );
+export function getRoomMembers(roomId: string): string[] {
+  return (
+    db.prepare('SELECT user_id FROM user_room_state WHERE room_id = ?').all(roomId) as { user_id: string }[]
+  ).map((r) => r.user_id);
 }
 
-/** Lazily clears an expired golden event and returns the active holder, if any. */
-export function getActiveGoldenHolder(roomId: string): string | null {
-  const room = getRoom(roomId);
-  if (!room.golden_holder_id || !room.golden_expires_at) return null;
-  if (new Date(room.golden_expires_at).getTime() < Date.now()) {
-    db.prepare('UPDATE room_state SET golden_holder_id = NULL, golden_expires_at = NULL WHERE room_id = ?').run(
-      roomId,
-    );
-    return null;
+export interface TaxEntry {
+  userId: string;
+  amount: number;
+}
+
+/** DESIGN.md §2.2 - golden poop tax: every other room member pays GOLDEN_TAX_AMOUNT
+ *  (or their full balance if lower); the thrower collects the total. */
+export function applyGoldenTax(roomId: string, throwerId: string): TaxEntry[] {
+  const entries: TaxEntry[] = [];
+  let total = 0;
+  for (const memberId of getRoomMembers(roomId)) {
+    if (memberId === throwerId) continue;
+    const player = getPlayer(roomId, memberId);
+    const amount = Math.min(GOLDEN_TAX_AMOUNT, player.coin);
+    if (amount > 0) {
+      debitCoin(roomId, memberId, amount, 'golden_tax');
+      total += amount;
+    }
+    entries.push({ userId: memberId, amount });
   }
-  return room.golden_holder_id;
+  if (total > 0) creditCoin(roomId, throwerId, total, 'golden_tax_collected');
+  return entries;
+}
+
+/** Diamond poop "광역 자산 압류": every other room member loses DIAMOND_SEIZURE_RATE
+ *  of their current balance; the thrower collects the total. */
+export function applyDiamondSeizure(roomId: string, throwerId: string): TaxEntry[] {
+  const entries: TaxEntry[] = [];
+  let total = 0;
+  for (const memberId of getRoomMembers(roomId)) {
+    if (memberId === throwerId) continue;
+    const player = getPlayer(roomId, memberId);
+    const amount = Math.floor(player.coin * DIAMOND_SEIZURE_RATE);
+    if (amount > 0) {
+      debitCoin(roomId, memberId, amount, 'diamond_seizure');
+      total += amount;
+    }
+    entries.push({ userId: memberId, amount });
+  }
+  if (total > 0) creditCoin(roomId, throwerId, total, 'diamond_seizure_collected');
+  return entries;
 }
 
 export function setLastAttacker(roomId: string, targetId: string, attackerId: string): void {
@@ -285,14 +349,14 @@ export function checkAndUnlockSkins(roomId: string, userId: string): string[] {
   if (player.rainbow_hit_count >= 50 && unlockSkin(roomId, userId, 'rainbow')) {
     newlyUnlocked.push('rainbow');
   }
-  if (player.golden_event_count >= 10 && unlockSkin(roomId, userId, 'golden')) {
+  if (player.golden_event_count >= 15 && unlockSkin(roomId, userId, 'golden')) {
     newlyUnlocked.push('golden');
   }
   if (player.diamond_lifetime_count >= 1 && unlockSkin(roomId, userId, 'diamond')) {
     newlyUnlocked.push('diamond');
   }
-  const basicCollected = getDex(roomId, userId).filter((d) => d.species_id <= 24).length;
-  if (basicCollected >= 24 && unlockSkin(roomId, userId, 'allstar')) {
+  const dexCollected = getDex(roomId, userId).length;
+  if (dexCollected >= SPECIES.length && unlockSkin(roomId, userId, 'allstar')) {
     newlyUnlocked.push('allstar');
   }
   return newlyUnlocked;

@@ -26,9 +26,7 @@ CREATE TABLE IF NOT EXISTS room_state (
   room_id             TEXT PRIMARY KEY,
   round_no            INTEGER NOT NULL DEFAULT 1,
   bomb_triggered_at   TEXT,
-  bomb_winner_user_id TEXT,
-  golden_holder_id    TEXT,
-  golden_expires_at   TEXT
+  bomb_winner_user_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_room_state (
@@ -46,6 +44,9 @@ CREATE TABLE IF NOT EXISTS user_room_state (
   diamond_lifetime_count INTEGER NOT NULL DEFAULT 0,
   golden_event_count     INTEGER NOT NULL DEFAULT 0,
   rainbow_hit_count      INTEGER NOT NULL DEFAULT 0,
+  equipped_skin          TEXT NOT NULL DEFAULT 'lv0_worn',
+  daily_throw_count      INTEGER NOT NULL DEFAULT 0,
+  daily_throw_date       TEXT,
   PRIMARY KEY (room_id, user_id)
 );
 

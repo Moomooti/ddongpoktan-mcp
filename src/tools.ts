@@ -2,19 +2,20 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { ensurePlayer } from './repository.js';
-import { checkGoldenPenalty } from './logic/goldenGuard.js';
 import { throwPoop } from './logic/throwPoop.js';
 import { flushToilet } from './logic/flushToilet.js';
 import { enhanceToilet } from './logic/enhanceToilet.js';
 import { useBidet } from './logic/useBidet.js';
 import { usePerfume } from './logic/usePerfume.js';
 import { buildDex, buildStatus } from './logic/status.js';
+import { selectSkin } from './logic/selectSkin.js';
 import {
   formatBidetResult,
   formatDex,
   formatEnhanceResult,
   formatFlushResult,
   formatPerfumeResult,
+  formatSelectSkinResult,
   formatStatus,
   formatThrowResult,
 } from './formatters.js';
@@ -40,12 +41,6 @@ function textResult(text: string) {
   return { content: [{ type: 'text' as const, text }] };
 }
 
-/** Implicit join (DESIGN.md §3): every tool auto-registers (room_code, nickname) on first use. */
-function ensureAndGuard(roomCode: string, nickname: string): { blocked: boolean; message?: string } {
-  ensurePlayer(roomCode, nickname);
-  return checkGoldenPenalty(roomCode, nickname);
-}
-
 export function registerAllTools(server: McpServer): void {
   server.registerTool(
     'throw_poop',
@@ -55,8 +50,9 @@ export function registerAllTools(server: McpServer): void {
         `Throws a random poop at another player in ${SERVICE_TAG}, a chaotic KakaoTalk group-chat game. ` +
         'Rolls a random poop tier (basic 75%, rainbow 12%, bomb 8%, golden 4%, diamond 1%) and applies its ' +
         "effect: stacking poop on the target's toilet, granting coins, or triggering room-wide events " +
-        '(bomb ends the round, golden silences the room for 60s, diamond issues a real-world dare). ' +
-        'If target_nickname is omitted, automatically retaliates against whoever last hit the caller.',
+        '(bomb ends the round; golden taxes every other room member 20 coins to the thrower; diamond seizes ' +
+        "30% of every other room member's coins to the thrower). If target_nickname is omitted, automatically " +
+        'retaliates against whoever last hit the caller.',
       inputSchema: {
         ...roomAndNickname,
         target_nickname: z
@@ -75,8 +71,7 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async ({ room_code, nickname, target_nickname }) => {
-      const guard = ensureAndGuard(room_code, nickname);
-      if (guard.blocked) return textResult(guard.message!);
+      ensurePlayer(room_code, nickname);
       const result = throwPoop(room_code, nickname, target_nickname);
       return textResult(formatThrowResult(result));
     },
@@ -100,8 +95,7 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async ({ room_code, nickname }) => {
-      const guard = ensureAndGuard(room_code, nickname);
-      if (guard.blocked) return textResult(guard.message!);
+      ensurePlayer(room_code, nickname);
       const result = flushToilet(room_code, nickname);
       return textResult(formatFlushResult(result));
     },
@@ -125,8 +119,7 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async ({ room_code, nickname }) => {
-      const guard = ensureAndGuard(room_code, nickname);
-      if (guard.blocked) return textResult(guard.message!);
+      ensurePlayer(room_code, nickname);
       const result = enhanceToilet(room_code, nickname);
       return textResult(formatEnhanceResult(result));
     },
@@ -150,8 +143,7 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async ({ room_code, nickname }) => {
-      const guard = ensureAndGuard(room_code, nickname);
-      if (guard.blocked) return textResult(guard.message!);
+      ensurePlayer(room_code, nickname);
       const result = useBidet(room_code, nickname);
       return textResult(formatBidetResult(result));
     },
@@ -174,8 +166,7 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async ({ room_code, nickname }) => {
-      const guard = ensureAndGuard(room_code, nickname);
-      if (guard.blocked) return textResult(guard.message!);
+      ensurePlayer(room_code, nickname);
       const result = usePerfume(room_code, nickname);
       return textResult(formatPerfumeResult(result));
     },
@@ -198,8 +189,7 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async ({ room_code, nickname }) => {
-      const guard = ensureAndGuard(room_code, nickname);
-      if (guard.blocked) return textResult(guard.message!);
+      ensurePlayer(room_code, nickname);
       const result = buildStatus(room_code, nickname);
       return textResult(formatStatus(result));
     },
@@ -222,10 +212,41 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async ({ room_code, nickname }) => {
-      const guard = ensureAndGuard(room_code, nickname);
-      if (guard.blocked) return textResult(guard.message!);
+      ensurePlayer(room_code, nickname);
       const result = buildDex(room_code, nickname);
       return textResult(formatDex(result));
+    },
+  );
+
+  server.registerTool(
+    'select_skin',
+    {
+      title: 'Select Toilet Skin',
+      description:
+        `Lists or equips the caller's toilet skins in ${SERVICE_TAG}. Call with skin omitted to list all 10 ` +
+        'skins (index, name, locked/unlocked/equipped status). Call with skin set to a listed index (0-9) or ' +
+        "skin id to equip an already-unlocked skin; equipping a locked skin fails with an explanatory message.",
+      inputSchema: {
+        ...roomAndNickname,
+        skin: z
+          .string()
+          .min(1)
+          .max(32)
+          .optional()
+          .describe('Skin index (0-9) or skin id to equip. Omit to list all skins and their status.'),
+      },
+      annotations: {
+        title: 'Select Toilet Skin',
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ room_code, nickname, skin }) => {
+      ensurePlayer(room_code, nickname);
+      const result = selectSkin(room_code, nickname, skin);
+      return textResult(formatSelectSkinResult(result));
     },
   );
 }

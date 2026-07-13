@@ -24,6 +24,9 @@ export interface PlayerRow {
   diamond_lifetime_count: number;
   golden_event_count: number;
   rainbow_hit_count: number;
+  equipped_skin: string;
+  daily_throw_count: number;
+  daily_throw_date: string | null;
 }
 
 export interface RoomRow {
@@ -50,6 +53,12 @@ export interface DexEntry {
   probability: number;
 }
 
+export interface RoomTax {
+  label: string;
+  entries: { userId: string; amount: number }[];
+  total: number;
+}
+
 export interface ThrowResult {
   error?: 'NO_TARGET' | 'SELF_TARGET';
   message?: string;
@@ -62,4 +71,9 @@ export interface ThrowResult {
   daily_bonus?: boolean;
   event?: 'rainbow' | 'bomb' | 'golden' | 'diamond';
   unlocked_skins?: string[];
+  room_tax?: RoomTax;
+  is_new_discovery?: boolean;
+  dex_collected?: number;
+  dex_total?: number;
+  today_throw_count?: number;
 }
