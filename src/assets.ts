@@ -54,7 +54,11 @@ export function skinStateImage(skinId: string, stack: number): ImageAsset | unde
   return undefined;
 }
 
-/** Misc effect art (bidet/perfume/flush) lives at assets/effects/{name}.png. */
+/** Misc effect art (bidet/perfume/flush) lives at assets/effects/{name}.(jpg|png). */
 export function effectImage(name: string): ImageAsset | undefined {
-  return loadFile(path.join(ASSETS_ROOT, 'effects', `${name}.png`));
+  for (const ext of ['jpg', 'png']) {
+    const found = loadFile(path.join(ASSETS_ROOT, 'effects', `${name}.${ext}`));
+    if (found) return found;
+  }
+  return undefined;
 }
