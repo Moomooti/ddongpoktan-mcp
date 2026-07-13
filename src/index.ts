@@ -1,3 +1,4 @@
+import path from 'node:path';
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import './db.js'; // initializes the SQLite schema + seed data as a side effect
@@ -5,6 +6,12 @@ import { buildServer } from './server.js';
 
 const app = express();
 app.use(express.json());
+
+// Serves illustration assets by URL instead of embedding base64 image content
+// blocks in MCP tool responses - PlayMCP's answer-generation step choked on
+// inline base64 image data, so tool responses reference these URLs as plain
+// text instead.
+app.use('/assets', express.static(path.join(process.cwd(), 'assets')));
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
@@ -20,7 +27,8 @@ app.get('/', (_req, res) => {
 // goes through repository.ts into SQLite.
 app.post('/mcp', async (req, res) => {
   try {
-    const server = buildServer();
+    const baseUrl = `${(req.headers['x-forwarded-proto'] as string) || 'https'}://${req.get('host')}`;
+    const server = buildServer(baseUrl);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on('close', () => {
       transport.close();

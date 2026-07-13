@@ -5,9 +5,10 @@ const SERVER_NAME = 'ddongpoktan';
 const SERVER_VERSION = '0.1.0';
 
 /** Builds a fresh McpServer instance. Called per-request (see index.ts) to stay
- *  fully stateless, per PlayMCP's dev guide ("Stateless MCP 서버 권장, no session"). */
-export function buildServer(): McpServer {
+ *  fully stateless, per PlayMCP's dev guide ("Stateless MCP 서버 권장, no session").
+ *  baseUrl is used to build absolute URLs to illustration assets (see assets.ts). */
+export function buildServer(baseUrl: string): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
-  registerAllTools(server);
+  registerAllTools(server, baseUrl);
   return server;
 }

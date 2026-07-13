@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { ensurePlayer, getPlayer } from './repository.js';
-import { effectImage, skinStateImage, speciesImage, type ImageAsset } from './assets.js';
+import { effectImagePath, skinStateImagePath, speciesImagePath } from './assets.js';
 import { throwPoop } from './logic/throwPoop.js';
 import { flushToilet } from './logic/flushToilet.js';
 import { enhanceToilet } from './logic/enhanceToilet.js';
@@ -38,15 +38,13 @@ const roomAndNickname = {
     .describe('The speaker\'s own nickname within the room. Used to identify the calling player.'),
 };
 
-function textResult(text: string, image?: ImageAsset) {
-  const content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[] = [
-    { type: 'text', text },
-  ];
-  if (image) content.push({ type: 'image', data: image.data, mimeType: image.mimeType });
-  return { content };
+function textResult(text: string, imageUrl?: string) {
+  return { content: [{ type: 'text' as const, text: imageUrl ? `${text}\n\n🖼️ ${imageUrl}` : text }] };
 }
 
-export function registerAllTools(server: McpServer): void {
+export function registerAllTools(server: McpServer, baseUrl: string): void {
+  const assetUrl = (relativePath: string | undefined) =>
+    relativePath ? `${baseUrl}/assets/${relativePath}` : undefined;
   server.registerTool(
     'throw_poop',
     {
@@ -78,7 +76,7 @@ export function registerAllTools(server: McpServer): void {
     async ({ room_code, nickname, target_nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = throwPoop(room_code, nickname, target_nickname);
-      const image = result.species_id !== undefined ? speciesImage(result.species_id) : undefined;
+      const image = result.species_id !== undefined ? assetUrl(speciesImagePath(result.species_id)) : undefined;
       return textResult(formatThrowResult(result), image);
     },
   );
@@ -104,7 +102,7 @@ export function registerAllTools(server: McpServer): void {
       ensurePlayer(room_code, nickname);
       const result = flushToilet(room_code, nickname);
       const skin = getPlayer(room_code, nickname).equipped_skin;
-      return textResult(formatFlushResult(result), skinStateImage(skin, result.new_stack));
+      return textResult(formatFlushResult(result), assetUrl(skinStateImagePath(skin, result.new_stack)));
     },
   );
 
@@ -131,7 +129,7 @@ export function registerAllTools(server: McpServer): void {
       const levelSkin = ['lv0_worn', 'lv1_white', 'lv2_stainless', 'lv3_marble', 'lv4_nanotech', 'lv5_throne'][
         result.new_level
       ];
-      return textResult(formatEnhanceResult(result), skinStateImage(levelSkin, 0));
+      return textResult(formatEnhanceResult(result), assetUrl(skinStateImagePath(levelSkin, 0)));
     },
   );
 
@@ -155,7 +153,7 @@ export function registerAllTools(server: McpServer): void {
     async ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = useBidet(room_code, nickname);
-      const image = result.changed ? effectImage('bidet_success') : effectImage('bidet_fail');
+      const image = assetUrl(result.changed ? effectImagePath('bidet_success') : effectImagePath('bidet_fail'));
       return textResult(formatBidetResult(result), image);
     },
   );
@@ -179,7 +177,7 @@ export function registerAllTools(server: McpServer): void {
     async ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = usePerfume(room_code, nickname);
-      return textResult(formatPerfumeResult(result), result.success ? effectImage('perfume') : undefined);
+      return textResult(formatPerfumeResult(result), result.success ? assetUrl(effectImagePath('perfume')) : undefined);
     },
   );
 
@@ -202,7 +200,7 @@ export function registerAllTools(server: McpServer): void {
     async ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = buildStatus(room_code, nickname);
-      return textResult(formatStatus(result), skinStateImage(result.equipped_skin, result.stack));
+      return textResult(formatStatus(result), assetUrl(skinStateImagePath(result.equipped_skin, result.stack)));
     },
   );
 
@@ -257,7 +255,7 @@ export function registerAllTools(server: McpServer): void {
     async ({ room_code, nickname, skin }) => {
       ensurePlayer(room_code, nickname);
       const result = selectSkin(room_code, nickname, skin);
-      const image = result.success && result.skin_id ? skinStateImage(result.skin_id, 0) : undefined;
+      const image = result.success && result.skin_id ? assetUrl(skinStateImagePath(result.skin_id, 0)) : undefined;
       return textResult(formatSelectSkinResult(result), image);
     },
   );
