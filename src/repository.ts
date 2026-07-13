@@ -299,8 +299,7 @@ export function setLastAttacker(roomId: string, targetId: string, attackerId: st
 export function endRound(roomId: string, winnerId: string): void {
   ensureRoom(roomId);
   db.prepare(
-    `UPDATE room_state SET round_no = round_no + 1, bomb_triggered_at = ?, bomb_winner_user_id = ?,
-     golden_holder_id = NULL, golden_expires_at = NULL WHERE room_id = ?`,
+    'UPDATE room_state SET round_no = round_no + 1, bomb_triggered_at = ?, bomb_winner_user_id = ? WHERE room_id = ?',
   ).run(nowIso(), winnerId, roomId);
   db.prepare(
     "UPDATE user_room_state SET stack = 0, fortune_state = 'none', fortune_expires_at = NULL WHERE room_id = ?",
