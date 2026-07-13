@@ -14,6 +14,7 @@ ENV DB_PATH=/app/data/game.db
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
+COPY assets ./assets
 RUN mkdir -p /app/data
 EXPOSE 3000
 CMD ["node", "dist/index.js"]

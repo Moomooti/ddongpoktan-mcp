@@ -11,6 +11,7 @@ export interface StatusResult {
   coin_balance: number;
   coin_recent: CoinLedgerEntry[];
   unlocked_skins: string[];
+  equipped_skin: string;
 }
 
 export function buildStatus(roomId: string, userId: string): StatusResult {
@@ -23,6 +24,7 @@ export function buildStatus(roomId: string, userId: string): StatusResult {
     coin_balance: player.coin,
     coin_recent: getRecentLedger(roomId, userId),
     unlocked_skins: getUnlockedSkins(roomId, userId),
+    equipped_skin: player.equipped_skin,
   };
 }
 
