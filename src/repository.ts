@@ -360,3 +360,36 @@ export function checkAndUnlockSkins(roomId: string, userId: string): string[] {
   }
   return newlyUnlocked;
 }
+
+/** Used by the OpenBuilder /skill route: maps an opaque platform user id to a
+ *  nickname, auto-assigning one on first contact so the game's nickname-keyed
+ *  identity model still works without the platform providing a display name. */
+export function getOrCreateAlias(platformUserId: string): string {
+  const existing = db
+    .prepare('SELECT nickname FROM user_alias WHERE platform_user_id = ?')
+    .get(platformUserId) as { nickname: string } | undefined;
+  if (existing) return existing.nickname;
+
+  const base = `손님${platformUserId.slice(-4)}`;
+  let nickname = base;
+  let suffix = 1;
+  while (db.prepare('SELECT 1 FROM user_alias WHERE nickname = ?').get(nickname)) {
+    nickname = `${base}_${suffix}`;
+    suffix += 1;
+  }
+  db.prepare('INSERT INTO user_alias (platform_user_id, nickname) VALUES (?, ?)').run(platformUserId, nickname);
+  return nickname;
+}
+
+export function setAlias(platformUserId: string, nickname: string): { success: boolean; message?: string } {
+  const taken = db.prepare('SELECT platform_user_id FROM user_alias WHERE nickname = ?').get(nickname) as
+    | { platform_user_id: string }
+    | undefined;
+  if (taken && taken.platform_user_id !== platformUserId) {
+    return { success: false, message: '이미 다른 사람이 사용 중인 닉네임이에요. 다른 이름을 골라주세요.' };
+  }
+  db.prepare(
+    'INSERT INTO user_alias (platform_user_id, nickname) VALUES (?, ?) ON CONFLICT(platform_user_id) DO UPDATE SET nickname = excluded.nickname',
+  ).run(platformUserId, nickname);
+  return { success: true };
+}

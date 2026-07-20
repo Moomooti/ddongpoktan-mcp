@@ -3,6 +3,7 @@ import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import './db.js'; // initializes the SQLite schema + seed data as a side effect
 import { buildServer } from './server.js';
+import { handleSkillRequest } from './skill.js';
 
 const app = express();
 app.use(express.json());
@@ -47,6 +48,11 @@ app.post('/mcp', async (req, res) => {
     }
   }
 });
+
+// Kakao i OpenBuilder Skill server endpoint - a separate integration path from
+// /mcp (different request/response JSON shape), reusing the same game logic.
+// See skill.ts for details and its known room-identity limitation.
+app.post('/skill', handleSkillRequest);
 
 // Stateless mode has no session to stream (GET) or close (DELETE).
 app.get('/mcp', (_req, res) => {

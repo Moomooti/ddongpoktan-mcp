@@ -85,6 +85,15 @@ CREATE TABLE IF NOT EXISTS user_skin (
   unlocked_at TEXT NOT NULL,
   PRIMARY KEY (room_id, user_id, skin_id)
 );
+
+-- Maps a stable platform user id (e.g. Kakao OpenBuilder's userRequest.user.id,
+-- which is an opaque per-bot-per-user key, not a display name) to the nickname
+-- used as the game's identity key. Only used by the OpenBuilder /skill route -
+-- the MCP tools take nickname directly from the caller.
+CREATE TABLE IF NOT EXISTS user_alias (
+  platform_user_id TEXT PRIMARY KEY,
+  nickname          TEXT NOT NULL UNIQUE
+);
 `);
 
 const seedCount = db.prepare('SELECT COUNT(*) AS n FROM poop_species').get() as { n: number };
