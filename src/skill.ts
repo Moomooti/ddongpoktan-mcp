@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
-import { getOrCreateAlias, setAlias } from './repository.js';
+import { getOrCreateAlias, getPlayer, setAlias } from './repository.js';
+import { effectImagePath, skinStateImagePath, speciesImagePath } from './assets.js';
 import { throwPoop } from './logic/throwPoop.js';
 import { flushToilet } from './logic/flushToilet.js';
 import { enhanceToilet } from './logic/enhanceToilet.js';
@@ -25,8 +26,12 @@ import {
 // paid business messaging APIs to get a room id, which is out of scope here.
 const ROOM_CODE = 'kakao_channel';
 
-function kakaoText(text: string) {
-  return { version: '2.0', template: { outputs: [{ simpleText: { text } }] } };
+const LEVEL_SKINS = ['lv0_worn', 'lv1_white', 'lv2_stainless', 'lv3_marble', 'lv4_nanotech', 'lv5_throne'];
+
+function kakaoResponse(text: string, imageUrl?: string) {
+  const outputs: Record<string, unknown>[] = [{ simpleText: { text } }];
+  if (imageUrl) outputs.push({ simpleImage: { imageUrl, altText: '똥폭탄' } });
+  return { version: '2.0', template: { outputs } };
 }
 
 const HELP_TEXT =
@@ -47,6 +52,10 @@ const HELP_TEXT =
  *  OpenBuilder relay expects that shape regardless of outcome. */
 export function handleSkillRequest(req: Request, res: Response): void {
   try {
+    const baseUrl = `${(req.headers['x-forwarded-proto'] as string) || 'https'}://${req.get('host')}`;
+    const assetUrl = (relativePath: string | undefined) =>
+      relativePath ? `${baseUrl}/assets/${relativePath}` : undefined;
+
     const utterance: string = req.body?.userRequest?.utterance ?? '';
     const platformUserId: string = req.body?.userRequest?.user?.id ?? 'unknown';
     const nickname = getOrCreateAlias(platformUserId);
@@ -54,49 +63,59 @@ export function handleSkillRequest(req: Request, res: Response): void {
     const nicknameCmd = utterance.match(/^닉네임\s*(?:설정)?\s*(\S+)/);
     if (nicknameCmd) {
       const result = setAlias(platformUserId, nicknameCmd[1]);
-      res.json(kakaoText(result.success ? `✅ 닉네임을 [${nicknameCmd[1]}]로 설정했습니다!` : `❌ ${result.message}`));
+      res.json(kakaoResponse(result.success ? `✅ 닉네임을 [${nicknameCmd[1]}]로 설정했습니다!` : `❌ ${result.message}`));
       return;
     }
 
     if (/발사|던져/.test(utterance)) {
       const mention = utterance.match(/@(\S+)/);
       const result = throwPoop(ROOM_CODE, nickname, mention?.[1]);
-      res.json(kakaoText(formatThrowResult(result)));
+      const image = result.species_id !== undefined ? assetUrl(speciesImagePath(result.species_id)) : undefined;
+      res.json(kakaoResponse(formatThrowResult(result), image));
       return;
     }
     if (/물\s*내리기/.test(utterance)) {
-      res.json(kakaoText(formatFlushResult(flushToilet(ROOM_CODE, nickname))));
+      const result = flushToilet(ROOM_CODE, nickname);
+      const skin = getPlayer(ROOM_CODE, nickname).equipped_skin;
+      res.json(kakaoResponse(formatFlushResult(result), assetUrl(skinStateImagePath(skin, result.new_stack))));
       return;
     }
     if (/변기\s*강화/.test(utterance)) {
-      res.json(kakaoText(formatEnhanceResult(enhanceToilet(ROOM_CODE, nickname))));
+      const result = enhanceToilet(ROOM_CODE, nickname);
+      res.json(kakaoResponse(formatEnhanceResult(result), assetUrl(skinStateImagePath(LEVEL_SKINS[result.new_level], 0))));
       return;
     }
     if (/비데/.test(utterance)) {
-      res.json(kakaoText(formatBidetResult(useBidet(ROOM_CODE, nickname))));
+      const result = useBidet(ROOM_CODE, nickname);
+      const image = assetUrl(result.changed ? effectImagePath('bidet_success') : effectImagePath('bidet_fail'));
+      res.json(kakaoResponse(formatBidetResult(result), image));
       return;
     }
     if (/퍼퓸|향수/.test(utterance)) {
-      res.json(kakaoText(formatPerfumeResult(usePerfume(ROOM_CODE, nickname))));
+      const result = usePerfume(ROOM_CODE, nickname);
+      res.json(kakaoResponse(formatPerfumeResult(result), result.success ? assetUrl(effectImagePath('perfume')) : undefined));
       return;
     }
     if (/도감/.test(utterance)) {
-      res.json(kakaoText(formatDex(buildDex(ROOM_CODE, nickname))));
+      res.json(kakaoResponse(formatDex(buildDex(ROOM_CODE, nickname))));
       return;
     }
     if (/변기\s*선택/.test(utterance)) {
       const skinArg = utterance.match(/변기\s*선택\s*(\S+)/);
-      res.json(kakaoText(formatSelectSkinResult(selectSkin(ROOM_CODE, nickname, skinArg?.[1]))));
+      const result = selectSkin(ROOM_CODE, nickname, skinArg?.[1]);
+      const image = result.success && result.skin_id ? assetUrl(skinStateImagePath(result.skin_id, 0)) : undefined;
+      res.json(kakaoResponse(formatSelectSkinResult(result), image));
       return;
     }
     if (/변기\s*(열기|확인)/.test(utterance)) {
-      res.json(kakaoText(formatStatus(buildStatus(ROOM_CODE, nickname))));
+      const result = buildStatus(ROOM_CODE, nickname);
+      res.json(kakaoResponse(formatStatus(result), assetUrl(skinStateImagePath(result.equipped_skin, result.stack))));
       return;
     }
 
-    res.json(kakaoText(`${HELP_TEXT}\n\n(현재 닉네임: ${nickname})`));
+    res.json(kakaoResponse(`${HELP_TEXT}\n\n(현재 닉네임: ${nickname})`));
   } catch (err) {
     console.error('Error handling /skill request:', err);
-    res.json(kakaoText('오류가 발생했습니다. 잠시 후 다시 시도해주세요.'));
+    res.json(kakaoResponse('오류가 발생했습니다. 잠시 후 다시 시도해주세요.'));
   }
 }
