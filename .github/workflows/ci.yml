@@ -50,6 +50,14 @@ jobs:
       - name: Smoke test (boot server, call it over HTTP like PlayMCP)
         run: npm run smoke
 
+      # Lint the running server the way an agent sees it: tool docs, annotations,
+      # and real responses from mcp-probe.json (no inline base64, links resolve).
+      - name: Agent lint (mcp-agent-lint)
+        run: |
+          PORT=3998 DB_PATH="$(mktemp -d)/lint.db" node dist/index.js &
+          for _ in $(seq 1 30); do curl -sf http://localhost:3998/health > /dev/null && break; sleep 0.2; done
+          npx -y github:Moomooti/mcp-agent-lint http://localhost:3998/mcp --probe mcp-probe.json --check-links
+
   docker:
     name: Docker image builds
     runs-on: ubuntu-latest

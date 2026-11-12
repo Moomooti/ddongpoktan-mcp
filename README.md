@@ -111,7 +111,13 @@
 - `readOnlyHint` 같은 annotation으로 조회용 툴(`check_status`, `check_dex`)과 상태를 바꾸는 툴을 구분했어요.
 - 확률과 효과(일반 75% · 무지개 12% …)를 툴 설명에 직접 적어서, 에이전트가 결과를 설명할 때 추측하지 않게 했어요.
 
-### 4. 실수해도 대화가 이어지게
+### 4. 응답 속 링크가 실제로 열리게
+
+직접 만든 [mcp-agent-lint](https://github.com/Moomooti/mcp-agent-lint)를 이 서버에 처음 돌렸을 때, **로컬에서는 응답 속 이미지 링크가 전부 깨진다**는 걸 발견했어요. 서버가 `X-Forwarded-Proto` 헤더가 없으면 무조건 `https://`로 URL을 만들었기 때문이에요. PlayMCP의 프록시 뒤에서는 헤더가 붙어서 문제가 없었지만, 로컬이나 헤더를 안 붙이는 프록시 뒤에서는 모두 깨졌어요.
+
+이제 [`src/baseUrl.ts`](src/baseUrl.ts)가 `PUBLIC_BASE_URL` 환경 변수 → `X-Forwarded-Proto` → 요청 자체의 프로토콜 순서로 정하고, CI가 매번 실제 서버를 띄워 mcp-agent-lint로 링크까지 확인해요.
+
+### 5. 실수해도 대화가 이어지게
 
 - `target_nickname`을 비우면 오류 대신 **마지막으로 나를 공격한 사람에게 복수**해요. 에이전트가 대상을 못 뽑아도 게임이 자연스럽게 진행돼요.
 - 그래도 대상이 없으면 오류가 아니라 *"누구에게 던질지 말해주세요"* 같은 **안내 문장**을 돌려줘서, 에이전트가 사용자에게 그대로 되물을 수 있어요.
@@ -152,6 +158,8 @@ npm run smoke   # 빌드된 서버를 띄워 HTTP로 tools/list · tools/call ·
 | **확률 로직** | `Math.random()`을 원하는 값으로 고정해서, 등급 경계값(0.75 · 0.87 · 0.95 · 0.99)과 강화 · 내리기 성공/실패를 운에 맡기지 않고 검증 | [`tests/species.test.ts`](tests/species.test.ts), [`tests/toilet.test.ts`](tests/toilet.test.ts) |
 | **게임 규칙** | 복수 · 도감 · 무지개 행운 · 폭탄 라운드 종료 · 황금 세금 · 다이아 압류 | [`tests/throwPoop.test.ts`](tests/throwPoop.test.ts) |
 | **데이터 ↔ 이미지 일치** | 똥 28종 · 스킨 10종 × 3단계 이미지가 모두 있는지, 장당 150KB 이하인지 | [`tests/species.test.ts`](tests/species.test.ts) |
+| **에이전트 관점 린트** | 빌드한 서버를 띄우고 [mcp-agent-lint](https://github.com/Moomooti/mcp-agent-lint)로 툴 설명 · annotation · 실제 응답([`mcp-probe.json`](mcp-probe.json)) · 응답 속 링크를 검사 | [CI](.github/workflows/ci.yml) |
+| **공개 URL** | 프록시 헤더 유무 · 여러 프록시 · `PUBLIC_BASE_URL`에 따라 이미지 URL이 맞게 만들어지는지 | [`tests/baseUrl.test.ts`](tests/baseUrl.test.ts) |
 | **카카오 연동** | 깨진 요청에도 카카오 응답 형식을 지키는지, 이미지를 정식 블록으로 보내는지 | [`tests/skill.test.ts`](tests/skill.test.ts) |
 
 - 테스트마다 **메모리 SQLite**를 써서 실제 DB 파일을 건드리지 않고, 테스트끼리 상태가 섞이지 않아요.
@@ -183,7 +191,8 @@ ddongpoktan-mcp/
 │   └── effects/          # 비데 · 내리기 실패 · 향수 연출
 ├── tests/                # 에이전트 계약 · 설계 문서 대조 · 게임 규칙 · 확률 · 이미지 · 카카오 연동
 ├── scripts/smoke.sh      # 빌드된 서버를 HTTP로 호출하는 스모크 테스트
-├── .github/workflows/    # CI (타입 검사 · 린트 · 테스트 · 빌드 · 스모크 · Docker)
+├── mcp-probe.json        # mcp-agent-lint가 CI에서 실제로 호출해 볼 툴 목록
+├── .github/workflows/    # CI (타입 검사 · 린트 · 테스트 · 빌드 · 스모크 · 에이전트 린트 · Docker)
 ├── DESIGN.md             # 상세 설계 문서 (데이터 모델 · 상태머신 · 툴 명세)
 └── Dockerfile
 ```
