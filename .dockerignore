@@ -5,3 +5,7 @@ data
 .git
 .gitignore
 DESIGN.md
+tests
+.github
+scripts
+coverage
