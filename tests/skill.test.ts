@@ -11,7 +11,12 @@ interface KakaoBody {
 /** Calls the Kakao OpenBuilder route with a hand-made request and returns the JSON it sent. */
 function callSkill(body: unknown): KakaoBody {
   let sent: KakaoBody | undefined;
-  const req = { body, headers: { 'x-forwarded-proto': 'https' }, get: () => 'example.test' } as unknown as Request;
+  const req = {
+    body,
+    protocol: 'http',
+    headers: { 'x-forwarded-proto': 'https', host: 'example.test' },
+    get: (name: string) => (name.toLowerCase() === 'host' ? 'example.test' : undefined),
+  } as unknown as Request;
   const res = {
     json: (payload: KakaoBody) => {
       sent = payload;

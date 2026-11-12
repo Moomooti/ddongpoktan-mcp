@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import './db.js'; // initializes the SQLite schema + seed data as a side effect
 import { buildServer } from './server.js';
 import { handleSkillRequest } from './skill.js';
+import { publicBaseUrl } from './baseUrl.js';
 
 const app = express();
 app.use(express.json());
@@ -28,7 +29,7 @@ app.get('/', (_req, res) => {
 // goes through repository.ts into SQLite.
 async function handleMcpRequest(req: Request, res: Response): Promise<void> {
   try {
-    const baseUrl = `${(req.headers['x-forwarded-proto'] as string) || 'https'}://${req.get('host')}`;
+    const baseUrl = publicBaseUrl(req);
     const server = buildServer(baseUrl);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on('close', () => {

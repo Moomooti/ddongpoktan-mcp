@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { getOrCreateAlias, getPlayer, setAlias } from './repository.js';
 import { effectImagePath, skinStateImagePath, speciesImagePath } from './assets.js';
+import { publicBaseUrl } from './baseUrl.js';
 import { throwPoop } from './logic/throwPoop.js';
 import { flushToilet } from './logic/flushToilet.js';
 import { enhanceToilet } from './logic/enhanceToilet.js';
@@ -65,7 +66,7 @@ const skillPayloadSchema = z.object({
  *  OpenBuilder relay expects that shape regardless of outcome. */
 export function handleSkillRequest(req: Request, res: Response): void {
   try {
-    const baseUrl = `${(req.headers['x-forwarded-proto'] as string) || 'https'}://${req.get('host')}`;
+    const baseUrl = publicBaseUrl(req);
     const assetUrl = (relativePath: string | undefined) =>
       relativePath ? `${baseUrl}/assets/${relativePath}` : undefined;
 

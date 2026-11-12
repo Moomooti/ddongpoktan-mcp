@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Boots the built server and makes the same HTTP calls PlayMCP makes:
 # health check, MCP tools/list, one tools/call, and fetching the image URL it returns.
+# No X-Forwarded-Proto header on purpose: image URLs must work without a proxy too.
 set -euo pipefail
 
 PORT="${PORT:-3999}"
@@ -18,7 +19,6 @@ mcp() {
   curl -sf "http://localhost:$PORT/mcp" \
     -H 'Content-Type: application/json' \
     -H 'Accept: application/json, text/event-stream' \
-    -H 'X-Forwarded-Proto: http' \
     -d "$1"
 }
 
