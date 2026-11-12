@@ -157,6 +157,8 @@ npm run smoke   # 빌드된 서버를 띄워 HTTP로 tools/list · tools/call ·
 - 테스트마다 **메모리 SQLite**를 써서 실제 DB 파일을 건드리지 않고, 테스트끼리 상태가 섞이지 않아요.
 - ESLint는 `typescript-eslint`의 **타입 정보 기반 규칙**(`recommendedTypeChecked`)을 테스트 코드까지 적용해요. 처리하지 않은 Promise, `any` 값 접근 같은 실수를 잡아요.
 - [GitHub Actions](.github/workflows/ci.yml)가 push · PR마다 **Node 20 · 22**에서 위 과정을 모두 돌리고, Docker 이미지 빌드도 확인해요.
+- **의존성 관리**: CI가 서버에 실제로 실리는 패키지(`--omit=dev`)의 high 이상 취약점을 검사하고, [Dependabot](.github/dependabot.yml)이 매주 월요일 업데이트 PR을 올려요. 개발 도구는 한 PR로 묶어서 리뷰 부담을 줄였어요.
+  - 2026-11: MCP SDK(요청 본문 크기 제한 없음 등), express 의존성(proxy-addr IP 위조, body-parser DoS), zod 취약점을 업데이트로 해결해서 런타임 취약점 **9개 → 0개**. 테스트 106개로 동작이 그대로인지 확인했어요.
 
 <br/>
 

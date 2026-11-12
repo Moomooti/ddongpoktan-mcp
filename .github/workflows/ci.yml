@@ -30,6 +30,11 @@ jobs:
 
       - run: npm ci
 
+      # Gate on what actually ships: runtime dependencies, high severity and up.
+      # Dev-only tooling advisories are left to Dependabot instead of blocking every PR.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Typecheck (src + tests)
         run: npm run typecheck
 
