@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { z } from 'zod';
 import { getOrCreateAlias, getPlayer, setAlias } from './repository.js';
 import { effectImagePath, skinStateImagePath, speciesImagePath } from './assets.js';
 import { throwPoop } from './logic/throwPoop.js';
@@ -47,6 +48,18 @@ const HELP_TEXT =
   '· 변기 선택 [번호] - 스킨 교체\n' +
   '· 닉네임 [이름] - 닉네임 바꾸기';
 
+// Only the fields this route reads. The body comes from an external relay, so it is
+// parsed instead of trusted: a malformed payload falls back to the help text rather
+// than throwing on a missing property.
+const skillPayloadSchema = z.object({
+  userRequest: z
+    .object({
+      utterance: z.string().default(''),
+      user: z.object({ id: z.string().min(1) }).optional(),
+    })
+    .optional(),
+});
+
 /** Handles Kakao i OpenBuilder Skill requests. Always responds 200 with a
  *  valid Kakao skill-response JSON body, even on internal errors, since the
  *  OpenBuilder relay expects that shape regardless of outcome. */
@@ -56,8 +69,10 @@ export function handleSkillRequest(req: Request, res: Response): void {
     const assetUrl = (relativePath: string | undefined) =>
       relativePath ? `${baseUrl}/assets/${relativePath}` : undefined;
 
-    const utterance: string = req.body?.userRequest?.utterance ?? '';
-    const platformUserId: string = req.body?.userRequest?.user?.id ?? 'unknown';
+    const parsed = skillPayloadSchema.safeParse(req.body);
+    const userRequest = parsed.success ? parsed.data.userRequest : undefined;
+    const utterance = userRequest?.utterance ?? '';
+    const platformUserId = userRequest?.user?.id ?? 'unknown';
     const nickname = getOrCreateAlias(platformUserId);
 
     const nicknameCmd = utterance.match(/^닉네임\s*(?:설정)?\s*(\S+)/);

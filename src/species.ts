@@ -31,9 +31,9 @@ const BASIC_NAMES: string[] = [
 // species_id 1~24: basic tier, uniformly likely within the tier.
 // species_id 25~28: single-species special tiers.
 export const SPECIES: SpeciesDef[] = [
-  ...BASIC_NAMES.map((name, i) => ({
+  ...BASIC_NAMES.map((name, i): SpeciesDef => ({
     speciesId: i + 1,
-    tier: 'basic' as Tier,
+    tier: 'basic',
     name,
     probability: TIER_PROBABILITY.basic / BASIC_NAMES.length,
   })),

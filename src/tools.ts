@@ -73,7 +73,7 @@ export function registerAllTools(server: McpServer, baseUrl: string): void {
         openWorldHint: false,
       },
     },
-    async ({ room_code, nickname, target_nickname }) => {
+    ({ room_code, nickname, target_nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = throwPoop(room_code, nickname, target_nickname);
       const image = result.species_id !== undefined ? assetUrl(speciesImagePath(result.species_id)) : undefined;
@@ -98,7 +98,7 @@ export function registerAllTools(server: McpServer, baseUrl: string): void {
         openWorldHint: false,
       },
     },
-    async ({ room_code, nickname }) => {
+    ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = flushToilet(room_code, nickname);
       const skin = getPlayer(room_code, nickname).equipped_skin;
@@ -123,7 +123,7 @@ export function registerAllTools(server: McpServer, baseUrl: string): void {
         openWorldHint: false,
       },
     },
-    async ({ room_code, nickname }) => {
+    ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = enhanceToilet(room_code, nickname);
       const levelSkin = ['lv0_worn', 'lv1_white', 'lv2_stainless', 'lv3_marble', 'lv4_nanotech', 'lv5_throne'][
@@ -150,7 +150,7 @@ export function registerAllTools(server: McpServer, baseUrl: string): void {
         openWorldHint: false,
       },
     },
-    async ({ room_code, nickname }) => {
+    ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = useBidet(room_code, nickname);
       const image = assetUrl(result.changed ? effectImagePath('bidet_success') : effectImagePath('bidet_fail'));
@@ -174,7 +174,7 @@ export function registerAllTools(server: McpServer, baseUrl: string): void {
         openWorldHint: false,
       },
     },
-    async ({ room_code, nickname }) => {
+    ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = usePerfume(room_code, nickname);
       return textResult(formatPerfumeResult(result), result.success ? assetUrl(effectImagePath('perfume')) : undefined);
@@ -197,7 +197,7 @@ export function registerAllTools(server: McpServer, baseUrl: string): void {
         openWorldHint: false,
       },
     },
-    async ({ room_code, nickname }) => {
+    ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = buildStatus(room_code, nickname);
       return textResult(formatStatus(result), assetUrl(skinStateImagePath(result.equipped_skin, result.stack)));
@@ -220,7 +220,7 @@ export function registerAllTools(server: McpServer, baseUrl: string): void {
         openWorldHint: false,
       },
     },
-    async ({ room_code, nickname }) => {
+    ({ room_code, nickname }) => {
       ensurePlayer(room_code, nickname);
       const result = buildDex(room_code, nickname);
       return textResult(formatDex(result));
@@ -252,7 +252,7 @@ export function registerAllTools(server: McpServer, baseUrl: string): void {
         openWorldHint: false,
       },
     },
-    async ({ room_code, nickname, skin }) => {
+    ({ room_code, nickname, skin }) => {
       ensurePlayer(room_code, nickname);
       const result = selectSkin(room_code, nickname, skin);
       const image = result.success && result.skin_id ? assetUrl(skinStateImagePath(result.skin_id, 0)) : undefined;

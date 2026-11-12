@@ -1,5 +1,5 @@
 import path from 'node:path';
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import './db.js'; // initializes the SQLite schema + seed data as a side effect
 import { buildServer } from './server.js';
@@ -26,14 +26,14 @@ app.get('/', (_req, res) => {
 // transport is built for every request (sessionIdGenerator: undefined), so no
 // game state may live on the transport/server instance itself - all state
 // goes through repository.ts into SQLite.
-app.post('/mcp', async (req, res) => {
+async function handleMcpRequest(req: Request, res: Response): Promise<void> {
   try {
     const baseUrl = `${(req.headers['x-forwarded-proto'] as string) || 'https'}://${req.get('host')}`;
     const server = buildServer(baseUrl);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on('close', () => {
-      transport.close();
-      server.close();
+      void transport.close();
+      void server.close();
     });
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
@@ -47,6 +47,10 @@ app.post('/mcp', async (req, res) => {
       });
     }
   }
+}
+
+app.post('/mcp', (req, res) => {
+  void handleMcpRequest(req, res);
 });
 
 // Kakao i OpenBuilder Skill server endpoint - a separate integration path from
